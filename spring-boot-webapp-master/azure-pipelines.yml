@@ -1,0 +1,120 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- master
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+stages:
+- stage: BuildAndPublish
+  jobs:
+  - job: 'Build'
+    steps:
+    - task: Maven@3
+      name: 'Build'
+      displayName: 'Build'
+      inputs:
+        mavenPomFile: 'pom.xml'
+        mavenOptions: '-DskipTests -Xmx3072m'
+        javaHomeOption: 'JDKVersion'
+        jdkVersionOption: '1.8'
+        jdkArchitectureOption: 'x64'
+        goals: 'clean install'
+    - task: PublishBuildArtifacts@1
+      inputs:
+        pathToPublish: '/home/vsts/work/1/s/target/sentiment-analysis-web-0.0.1-SNAPSHOT.jar'
+        artifactName: sentiment-analysis.jar
+  - job: 'PublishArtifact'
+    pool: server
+    dependsOn: 'Build'
+    steps:
+    - task: InvokeRESTAPI@1
+      inputs:
+        connectionType: 'connectedServiceName'
+        serviceConnection: 'nitinp2mad'
+        method: 'POST'
+        body: |
+          {
+            "artifacts":[
+                {
+                  "name":"_snowdevops.spring-boot-webapp",
+                  "version":"1.$(build.buildId)",
+                  "semanticVersion":"1.$(build.buildId).0",
+                  "repositoryName":"snowdevops.spring-boot-webapp"
+                }
+            ],
+            "pipelineName":"$(system.teamProject)/$(build.definitionName)",
+            "taskExecutionNumber":"$(build.buildId)",
+            "stageName":"$(system.jobDisplayName)",
+            "branchName": "$(build.sourceBranchName)"
+          }
+        urlSuffix: '/artifact/registration?orchestrationToolId=a2ded03bdb64a050ac381caa0b96192b'
+        waitForCompletion: 'false'
+
+- stage: TestAndPackage
+  dependsOn: 'BuildAndPublish'
+  jobs:          
+  - job: 'Test'
+    steps:
+    - task: Maven@3
+      name: 'Test'
+      displayName: 'Test'
+      inputs:
+        goals: 'test'
+        mavenPomFile: 'pom.xml'
+        mavenOptions: '-Xmx3072m'
+        javaHomeOption: 'JDKVersion'
+        jdkVersionOption: '1.8'
+        jdkArchitectureOption: 'x64'
+        publishJUnitResults: true
+        testResultsFiles: '**/target/surefire-reports/*.xml'
+        testRunTitle: 'Test'
+  - job: 'Package'
+    pool: server
+    dependsOn: 'Test'
+    steps:
+      - task: InvokeRESTAPI@1
+        inputs:
+          connectionType: 'connectedServiceName'
+          serviceConnection: 'nitinp2mad'
+          method: 'POST'
+          body: |
+            {
+              "name": "sp-package",
+              "artifacts":[ 
+                  {"name":"_snowdevops.spring-boot-webapp",
+                  "version":"1.$(build.buildId)", 
+                  "repositoryName":"snowdevops.spring-boot-webapp" 
+                  }
+              ],
+              "pipelineName": "$(system.teamProject)/$(build.definitionName)",
+              "taskExecutionNumber": "$(build.buildId)",
+              "stageName": "$(system.jobDisplayName)",
+              "branchName": "$(build.sourceBranchName)"
+            }
+          urlSuffix: '/package/registration?orchestrationToolId=a2ded03bdb64a050ac381caa0b96192b'
+          waitForCompletion: 'false'
+
+- stage: Deploy
+  dependsOn: 'TestAndPackage'
+  jobs:
+  - job: 'Deploy'
+    pool : server
+    steps:
+    - task: InvokeRESTAPI@1
+      inputs:
+        connectionType: 'connectedServiceName'
+        serviceConnection: 'nitinp2mad'
+        method: 'POST'
+        body: |
+         {
+            "buildNumber": "$(build.buildId)",
+            "isMultiBranch": "true",
+            "branchName": "$(build.sourceBranchName)"
+         }
+        urlSuffix: '/orchestration/changeControl?toolId=a2ded03bdb64a050ac381caa0b96192b&toolType=ado'
+        waitForCompletion: 'true'
