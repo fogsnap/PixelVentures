@@ -1,0 +1,20 @@
+def tasks = [:]
+
+tasks["task_1"] = {
+  stage ("task_1"){    
+    node {  
+        sh 'echo task_1'
+        sh 'sleep 10'
+    }
+  }
+}
+tasks["task_2"] = {
+  stage ("task_2"){    
+    node {  
+        sh 'echo task_2'
+        sh 'sleep 10'
+    }
+  }
+}
+
+parallel tasks

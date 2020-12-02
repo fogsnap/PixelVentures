@@ -1,0 +1,28 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Build') {
+            steps {
+                echo 'Building..'
+                snDevOpsStep(stepSysId:'baae3d35537333007109ddeeff7b128b', enabled:true, ignoreErrors: true)
+                sleep 1
+            }
+        }
+        stage('Test') {
+            steps {
+                echo 'Testing..'
+                snDevOpsStep(stepSysId:'36ae3d35537333007109ddeeff7b128c', enabled:true, ignoreErrors: true)
+                sleep 1
+            }
+        }
+        stage('Deploy') {
+            steps {
+                echo 'Deploying....'
+                snDevOpsStep (stepSysId:'b2ae3d35537333007109ddeeff7b128c', enabled:true, ignoreErrors: true)
+                snDevOpsChange( ignoreErrors:true, enabled:true)
+                sleep 1
+            }
+        }
+    }
+}
